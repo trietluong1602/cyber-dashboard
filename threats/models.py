@@ -5,7 +5,7 @@ class Vulnerability(models.Model):
     cve_id = models.CharField(max_length=25, unique=True)
     vendor = models.CharField(max_length=255)
     product = models.CharField(max_length=255)
-    vuln_name = models.CharField(max_length=255)
+    vulnerability_name = models.CharField(max_length=255)
     date_added = models.DateField()
     description = models.TextField()
     required_action = models.TextField()
