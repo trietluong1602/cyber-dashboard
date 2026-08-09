@@ -117,7 +117,7 @@ def transform_record(record):
         "cve_id": cve_id,
         "vendor": _clean_text(record.get("vendorProject")),
         "product": _clean_text(record.get("product")),
-        "vuln_name": _clean_text(record.get("vulnerabilityName")),
+        "vulnerability_name": _clean_text(record.get("vulnerabilityName")),
         "date_added": date_added,
         "description": _clean_text(record.get("shortDescription")),
         "required_action": _clean_text(record.get("requiredAction")),

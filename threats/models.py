@@ -14,4 +14,4 @@ class Vulnerability(models.Model):
     source_updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.cve_id} - {self.vuln_name}"
+        return f"{self.cve_id} - {self.vulnerability_name}"
