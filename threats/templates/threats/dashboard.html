@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+  <h1 class="h3 mb-4">Known Exploited Vulnerabilities</h1>
+
+  <div class="row g-3 mb-4">
+
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Total in catalog</div>
+          <div class="display-6 fw-semibold">{{ total_count|intcomma }}</div>
+          <div class="text-muted small">CISA KEV entries</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Known ransomware use</div>
+          <div class="display-6 fw-semibold">{{ ransomware_count|intcomma }}</div>
+          <div class="text-muted small">Confirmed by CISA</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Added recently</div>
+          <div class="display-6 fw-semibold">{{ recent_count|intcomma }}</div>
+          <div class="text-muted small">In the last 30 days</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <div class="text-muted text-uppercase small">Data last imported</div>
+          {% if last_imported %}
+            <div class="h4 fw-semibold mb-0 mt-2">
+              {{ last_imported|date:"M j, Y" }}
+            </div>
+            <div class="text-muted small">{{ last_imported|time:"g:i a T" }}</div>
+          {% else %}
+            <div class="h4 fw-semibold mb-0 mt-2 text-muted">Never</div>
+            <div class="text-muted small">Run <code>import_cisa</code></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div>
+{% endblock %}
