@@ -64,7 +64,7 @@ an existing one.
 
 | Vulnerability list | Detail page |
 |---|---|
-| ![List](docs/screenshots/list.png) | ![Detail](docs/screenshots/detail.png) |
+| ![List](docs/screenshots/vulnerability_list.png) | ![Detail](docs/screenshots/vulnerabilitydetail.png) |
 
 ---
 
