@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 64" width="250" height="64" role="img" aria-label="ThreatLens">
+  <title>ThreatLens</title>
+  <defs>
+    <linearGradient id="tll-cowl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4C74AC"/>
+      <stop offset="1" stop-color="#22325A"/>
+    </linearGradient>
+    <linearGradient id="tll-eye" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFD668"/>
+      <stop offset="1" stop-color="#F2A81C"/>
+    </linearGradient>
+  </defs>
+
+  <g>
+    <g fill="#16203A">
+      <path d="M32 26C22 22 12 26 3 37l9-1-4 9 10-3-2 9 16-9z"/>
+      <path d="M32 26c10-4 20 0 29 11l-9-1 4 9-10-3 2 9-16-9z"/>
+    </g>
+    <path d="M16 31 18.5 9 31 21h2L45.5 9 48 31c0 11.5-7 17.5-16 17.5S16 42.5 16 31z" fill="url(#tll-cowl)"/>
+    <g fill="#1B2846">
+      <path d="M20.8 15.5 22.2 25.5 27.8 21.8z"/>
+      <path d="M43.2 15.5 41.8 25.5 36.2 21.8z"/>
+    </g>
+    <ellipse cx="32" cy="40.6" rx="10.4" ry="6.6" fill="#DCE5F3"/>
+    <g stroke="#8FA4C6" stroke-width="1.1" stroke-linecap="round" opacity=".85">
+      <path d="M22.4 39.2 15.6 37.4M22.2 41.8 15.2 42.2"/>
+      <path d="M41.6 39.2 48.4 37.4M41.8 41.8 48.8 42.2"/>
+    </g>
+    <g fill="url(#tll-eye)">
+      <path d="M20.6 30.6c1.6-4.2 6.8-4.4 8.9-1.2-2 3.2-7.2 3.6-8.9 1.2z"/>
+      <path d="M43.4 30.6c-1.6-4.2-6.8-4.4-8.9-1.2 2 3.2 7.2 3.6 8.9 1.2z"/>
+    </g>
+    <path d="M32 35.4 34.6 37.6 32 39.8 29.4 37.6z" fill="#2B3E66"/>
+    <path d="M32 39.8v1.6M32 41.4c0 1.5-1.6 2.4-3 2.4M32 41.4c0 1.5 1.6 2.4 3 2.4"
+          stroke="#2B3E66" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+  </g>
+
+  <text x="70" y="39" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-size="24" font-weight="600" letter-spacing="-0.4" fill="currentColor">
+    Threat<tspan fill="#F2A81C">Lens</tspan>
+  </text>
+</svg>
