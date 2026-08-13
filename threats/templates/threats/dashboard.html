@@ -42,9 +42,13 @@
           <div class="text-muted text-uppercase small">Data last imported</div>
           {% if last_imported %}
             <div class="h4 fw-semibold mb-0 mt-2">
-              {{ last_imported|date:"M j, Y" }}
+                <time class="js-local-datetime" data-mode="date"
+                    datetime="{{ last_imported|date:'c' }}">{{ last_imported|date:"M j, Y" }}</time>
             </div>
-            <div class="text-muted small">{{ last_imported|time:"g:i a T" }}</div>
+            <div class="text-muted small">
+                <time class="js-local-datetime" data-mode="time"
+                    datetime="{{ last_imported|date:'c' }}">{{ last_imported|time:"g:i a T" }}</time>
+            </div>
           {% else %}
             <div class="h4 fw-semibold mb-0 mt-2 text-muted">Never</div>
             <div class="text-muted small">Run <code>import_cisa</code></div>
