@@ -5,9 +5,9 @@ Vulnerabilities (KEV) catalog and NIST's National Vulnerability Database (NVD)
 through repeatable ETL pipelines and presents it as a searchable, filterable
 web application.
 
-**Current version: v0.2** — CISA KEV ingestion, NVD enrichment (CVSS,
+**Current version: v0.3** — CISA KEV ingestion, NVD enrichment (CVSS,
 severity, CWE), KPI dashboard, vulnerability list with search and pagination,
-and detail pages.
+detail pages, and an analytics page with interactive charts.
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
@@ -33,6 +33,12 @@ pages combining both sources.
 At the time of writing, the catalog holds **1,662 vulnerabilities** across
 **276 vendors**, of which **338** are confirmed by CISA to have been used in
 ransomware campaigns. **1,656** of those have been enriched with NVD data.
+
+The catalog is currently scoped to CISA KEV entries only — `import_nvd`
+enriches CVEs already known through KEV rather than discovering new,
+non-KEV CVEs from NVD directly. Broader NVD-only coverage is optional scope
+and remains on the backlog; every vulnerability in the database today is a
+confirmed known-exploited CVE.
 
 ---
 
@@ -67,15 +73,26 @@ silently overwrite data owned by the other.
 | Database | PostgreSQL |
 | ETL | `requests` + standard library, Django ORM for load |
 | Front end | Django templates, Bootstrap 5 |
-| Tests | Django test runner (60 tests) |
+| Visualization | Chart.js |
+| Tests | Django test runner (81 tests) |
 
 ---
 
 ## Screenshots
 
-| Vulnerability list | Detail page |
-|---|---|
-| ![List](docs/screenshots/vulnerability_list.png) | ![Detail](docs/screenshots/vulnerability_detail.png) |
+| Vulnerability list |
+|---|
+| ![List](docs/screenshots/vulnerability_list.png) |
+
+| Vulnerability's Detail page |
+|---|
+| ![Detail](docs/screenshots/vulnerability_detail.png) |
+
+| Analytics |
+|---|
+| ![Analytics](docs/screenshots/vulnerability_analytics_1.png) |
+| ![Analytics](docs/screenshots/vulnerability_analytics_2.png) |
+| ![Analytics](docs/screenshots/vulnerability_analytics_3.png) |
 
 ---
 
@@ -218,6 +235,37 @@ For a record-level walkthrough of the whole path, see
 
 ---
 
+## Analytics
+
+`/analytics/` turns the raw catalog into answers to the questions an analyst
+actually asks:
+
+| Chart | Question it answers |
+|---|---|
+| Severity distribution | How much of the catalog is Critical/High/Medium/Low? |
+| Top vendors | Which vendors show up most often? |
+| CVEs added over time | Is exploited-vulnerability activity increasing? |
+| Ransomware association | How many known exploited CVEs tie to ransomware? |
+| Top weaknesses (CWE) | Which weakness categories recur most? |
+| Average / median CVSS | What's the overall severity profile? |
+| Recently modified CVEs | What changed recently and may need re-review? |
+
+Two implementation notes worth knowing:
+
+- **Median CVSS is computed in Python**, not the database — Django has no
+  built-in median aggregate, and pulling the raw scores and calling
+  `statistics.median()` is simple and fully portable across database
+  backends at this data volume.
+- **NVD's `NVD-CWE-noinfo` and `NVD-CWE-Other` placeholders are excluded**
+  from the top-weaknesses chart. Both mean "NVD could not determine a CWE"
+  — including them would let an "unknown" bucket dominate a chart whose
+  whole purpose is showing real weakness categories.
+
+Every chart, and the empty-database state, is covered by
+[`threats/tests/test_analytics.py`](threats/tests/test_analytics.py).
+
+---
+
 ## Project layout
 
 ```
@@ -230,7 +278,7 @@ cyber-dashboard/
 ├── config/                          # settings, root URLconf, WSGI
 └── threats/
     ├── models.py                    # Vulnerability, NvdEnrichment
-    ├── views.py                     # dashboard, list, detail
+    ├── views.py                     # dashboard, list, detail, analytics
     ├── urls.py
     ├── admin.py
     ├── management/commands/
@@ -241,11 +289,16 @@ cyber-dashboard/
     │   ├── nvd.py                   # extract + transform, NVD-specific
     │   └── loader.py                # shared upsert logic for both sources
     ├── templates/threats/
+    │   ├── dashboard.html
+    │   ├── vulnerability_list.html
+    │   ├── vulnerability_detail.html
+    │   └── analytics.html           # severity, vendor, time, CWE, CVSS charts
     └── tests/
         ├── test_transform.py        # CISA transform tests
         ├── test_nvd_transform.py    # NVD transform tests
         ├── test_loader.py           # upsert/load tests, both sources
-        └── test_views.py            # request/response tests
+        ├── test_views.py            # request/response tests
+        └── test_analytics.py        # analytics aggregation + empty-state tests
 ```
 
 ---
@@ -298,7 +351,7 @@ python manage.py test threats
 python manage.py test threats --keepdb    # faster reruns
 ```
 
-60 tests, split into four groups:
+81 tests, split into five groups:
 
 - **CISA transform tests** run against a record copied verbatim from the live
   feed, with no database access, covering key mapping, date parsing,
@@ -312,8 +365,14 @@ python manage.py test threats --keepdb    # faster reruns
   idempotent reruns, and — most importantly — that enriching a CVE with NVD
   data never touches its CISA-owned fields, and that a CVE known only to NVD
   can create its own `Vulnerability` row.
-- **View tests** cover all three views, plus search, filtering, pagination
-  edge cases, the empty-database state, and 404 handling.
+- **View tests** cover all three core views, plus search, filtering,
+  pagination edge cases, the empty-database state, and 404 handling.
+- **Analytics tests** cover every aggregation (severity distribution, top
+  vendors, CVEs by month, ransomware split, average/median CVSS, recently
+  modified ordering), confirm NVD's `NVD-CWE-noinfo`/`NVD-CWE-Other`
+  placeholders never appear as a "top weakness," and confirm the page loads
+  cleanly with an empty database instead of raising a division error on the
+  CVSS average.
 
 ---
 
@@ -323,9 +382,9 @@ python manage.py test threats --keepdb    # faster reruns
 |---|---|---|---|
 | 0 | v0.0 | Django + PostgreSQL foundation | Done |
 | 1 | v0.1 | CISA KEV ETL, dashboard, list, detail | Done |
-| 2 | v0.2 | NVD enrichment — CVSS, severity, CWE | **Done** |
-| 3 | v0.3 | Analytics page with charts | Next |
-| 4 | v0.4 | Accounts, watchlists, analyst notes | Planned |
+| 2 | v0.2 | NVD enrichment — CVSS, severity, CWE | Done |
+| 3 | v0.3 | Analytics page with charts | **Done** |
+| 4 | v0.4 | Accounts, watchlists, analyst notes | Next |
 | 5 | v0.5 | MITRE ATT&CK explorer | Planned |
 | 6 | v0.6 | Scheduled incremental ETL with run tracking | Planned |
 | 7 | v0.7 | Alert rules and priority scoring | Planned |

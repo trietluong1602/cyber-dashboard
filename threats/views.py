@@ -1,11 +1,17 @@
 from datetime import timedelta
+from statistics import median
 
 from django.core.paginator import Paginator
-from django.db.models import Max, Q
+from django.db.models import Avg, Count, Max, Q
+from django.db.models.functions import TruncMonth
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
 
 from .models import Vulnerability
+
+# NVD's placeholders for "no CWE could be determined" — excluded from the
+# top-weaknesses chart so it reflects real categories, not "unknown".
+CWE_PLACEHOLDER_VALUES = ["NVD-CWE-noinfo", "NVD-CWE-Other"]
 
 PAGE_SIZE = 25
 
@@ -26,9 +32,36 @@ DEFAULT_SORT = "-date_added"
 def dashboard(request):
     today = timezone.now().date()
     thirty_days_ago = today - timedelta(days=30)
+    due_soon_cutoff = today + timedelta(days=7)
 
     freshness = Vulnerability.objects.aggregate(
         last_imported=Max("source_updated_at"),
+    )
+
+    # Split rather than combined: a KEV catalog spans years, so most
+    # federal remediation deadlines have already passed. Lumping "overdue
+    # by 4 years" and "due next Tuesday" into one number under a "due
+    # within 7 days" label is misleading — the two questions ("how big is
+    # the backlog" vs "what's actually urgent right now") deserve separate
+    # answers.
+    overdue_count = Vulnerability.objects.filter(
+        due_date__isnull=False, due_date__lt=today
+    ).count()
+    due_soon_count = Vulnerability.objects.filter(
+        due_date__gte=today, due_date__lte=due_soon_cutoff
+    ).count()
+
+    recent_vulnerabilities = (
+        Vulnerability.objects.filter(date_added__isnull=False)
+        .select_related("nvd")
+        .order_by("-date_added")[:8]
+    )
+
+    top_vendors = (
+        Vulnerability.objects.exclude(vendor="")
+        .values("vendor")
+        .annotate(count=Count("id"))
+        .order_by("-count")[:8]
     )
 
     context = {
@@ -39,7 +72,11 @@ def dashboard(request):
         "recent_count": Vulnerability.objects.filter(
             date_added__gte=thirty_days_ago
         ).count(),
+        "overdue_count": overdue_count,
+        "due_soon_count": due_soon_count,
         "last_imported": freshness["last_imported"],
+        "recent_vulnerabilities": recent_vulnerabilities,
+        "top_vendors": list(top_vendors),
     }
     return render(request, "threats/dashboard.html", context)
 
@@ -96,3 +133,85 @@ def vulnerability_detail(request, cve_id):
         Vulnerability.objects.select_related("nvd"), cve_id=cve_id
     )
     return render(request, "threats/vulnerability_detail.html", {"vulnerability": vulnerability})
+
+
+def analytics(request):
+    # Severity distribution — bucket by NVD severity label.
+    severity_counts = (
+        Vulnerability.objects.filter(nvd__severity__gt="")
+        .values("nvd__severity")
+        .annotate(count=Count("id"))
+        .order_by("-count")
+    )
+
+    # Top vendors — most-represented vendors in the catalog.
+    top_vendors = (
+        Vulnerability.objects.exclude(vendor="")
+        .values("vendor")
+        .annotate(count=Count("id"))
+        .order_by("-count")[:10]
+    )
+
+    # CVEs over time — grouped by month added.
+    cves_over_time = (
+        Vulnerability.objects.filter(date_added__isnull=False)
+        .annotate(month=TruncMonth("date_added"))
+        .values("month")
+        .annotate(count=Count("id"))
+        .order_by("month")
+    )
+
+    # Known exploited vs. broader CVEs.
+    total_count = Vulnerability.objects.count()
+    known_exploited_count = Vulnerability.objects.filter(
+        date_added__isnull=False
+    ).count()
+
+    # Ransomware association among known exploited vulnerabilities.
+    ransomware_known = Vulnerability.objects.filter(
+        known_ransomware_use=True
+    ).count()
+    ransomware_unknown = Vulnerability.objects.filter(
+        date_added__isnull=False
+    ).exclude(known_ransomware_use=True).count()
+
+    # Top CWEs — real weakness categories only (placeholders excluded).
+    top_cwes = (
+        Vulnerability.objects.filter(nvd__cwe_id__gt="")
+        .exclude(nvd__cwe_id__in=CWE_PLACEHOLDER_VALUES)
+        .values("nvd__cwe_id")
+        .annotate(count=Count("id"))
+        .order_by("-count")[:10]
+    )
+
+    # Average / median CVSS. Median isn't a builtin Django aggregate,
+    # so we pull the raw scores and compute it in Python — fine at
+    # this dataset size, and keeps the query portable across DBs.
+    cvss_scores = list(
+        Vulnerability.objects.filter(nvd__cvss_score__isnull=False)
+        .values_list("nvd__cvss_score", flat=True)
+    )
+    avg_cvss = round(sum(cvss_scores) / len(cvss_scores), 2) if cvss_scores else None
+    median_cvss = round(median(cvss_scores), 2) if cvss_scores else None
+
+    # Recently modified CVEs (per NVD's modified_date), most recent first.
+    recently_modified = (
+        Vulnerability.objects.filter(nvd__modified_date__isnull=False)
+        .select_related("nvd")
+        .order_by("-nvd__modified_date")[:10]
+    )
+
+    context = {
+        "severity_counts": list(severity_counts),
+        "top_vendors": list(top_vendors),
+        "cves_over_time": list(cves_over_time),
+        "total_count": total_count,
+        "known_exploited_count": known_exploited_count,
+        "ransomware_known": ransomware_known,
+        "ransomware_unknown": ransomware_unknown,
+        "top_cwes": list(top_cwes),
+        "avg_cvss": avg_cvss,
+        "median_cvss": median_cvss,
+        "recently_modified": recently_modified,
+    }
+    return render(request, "threats/vulnerability_analytics.html", context)

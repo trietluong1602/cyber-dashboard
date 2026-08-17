@@ -57,6 +57,27 @@ class DashboardViewTests(ViewTestCase):
 
         self.assertIsNotNone(response.context["last_imported"])
 
+    def test_overdue_and_due_soon_counts(self):
+        response = self.client.get(reverse("threats:dashboard"))
+
+        # self.recent: due_date = today + 7 days -> due soon, not overdue.
+        # self.ransomware: due_date = 2021-12-24 (long past) -> overdue.
+        self.assertEqual(response.context["overdue_count"], 1)
+        self.assertEqual(response.context["due_soon_count"], 1)
+
+    def test_recent_vulnerabilities_newest_first(self):
+        response = self.client.get(reverse("threats:dashboard"))
+        rows = list(response.context["recent_vulnerabilities"])
+
+        self.assertEqual(rows[0], self.recent)
+
+    def test_top_vendors_in_context(self):
+        response = self.client.get(reverse("threats:dashboard"))
+        vendors = {row["vendor"] for row in response.context["top_vendors"]}
+
+        self.assertIn("Cisco", vendors)
+        self.assertIn("Apache", vendors)
+
 
 class DashboardEmptyStateTests(TestCase):
     """No fixtures at all — the state before the first ETL run."""
@@ -67,6 +88,10 @@ class DashboardEmptyStateTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["total_count"], 0)
         self.assertIsNone(response.context["last_imported"])
+        self.assertEqual(response.context["overdue_count"], 0)
+        self.assertEqual(response.context["due_soon_count"], 0)
+        self.assertEqual(list(response.context["recent_vulnerabilities"]), [])
+        self.assertEqual(response.context["top_vendors"], [])
 
 
 class VulnerabilityListTests(ViewTestCase):

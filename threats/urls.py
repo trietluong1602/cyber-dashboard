@@ -7,4 +7,5 @@ urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("vulnerabilities/", views.vulnerability_list, name="vulnerability_list"),
     path("vulnerabilities/<slug:cve_id>/", views.vulnerability_detail, name="vulnerability_detail"),
+    path("analytics/", views.analytics, name="vulnerability_analytics"),
 ]

@@ -30,7 +30,7 @@
       <ul class="navbar-nav ms-auto">
         <li class="nav-item"><a class="nav-link" href="{% url 'threats:dashboard' %}">Dashboard</a></li>
         <li class="nav-item"><a class="nav-link" href="{% url 'threats:vulnerability_list' %}">Vulnerabilities</a></li>
-        <li class="nav-item"><a class="nav-link" href="#">Analytics</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'threats:vulnerability_analytics' %}">Analytics</a></li>
         <li class="nav-item"><a class="nav-link" href="#">About</a></li>
       </ul>
     </div>
@@ -42,7 +42,7 @@
 </main>
 
 <footer class="app-container text-muted small py-4 border-top">
-    Cyber Threat Intelligence Dashboard &middot; v0.2
+    Cyber Threat Intelligence Dashboard &middot; v0.3
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

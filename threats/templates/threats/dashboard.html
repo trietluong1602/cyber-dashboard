@@ -37,6 +37,33 @@
     </div>
 
     <div class="col-12 col-sm-6 col-lg-3">
+      <div class="row g-2 h-100">
+        <div class="col-12">
+          <div class="card shadow-sm{% if overdue_count %} border-danger{% endif %}">
+            <div class="card-body py-2">
+              <div class="text-muted text-uppercase small">Overdue</div>
+              <div class="h3 fw-semibold mb-0 {% if overdue_count %}text-danger{% endif %}">
+                {{ overdue_count|intcomma }}
+              </div>
+              <div class="text-muted small">Past CISA's remediation deadline</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="card shadow-sm{% if due_soon_count %} border-warning{% endif %}">
+            <div class="card-body py-2">
+              <div class="text-muted text-uppercase small">Due soon</div>
+              <div class="h3 fw-semibold mb-0 {% if due_soon_count %}text-warning-emphasis{% endif %}">
+                {{ due_soon_count|intcomma }}
+              </div>
+              <div class="text-muted small">Due within the next 7 days</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
       <div class="card h-100 shadow-sm">
         <div class="card-body">
           <div class="text-muted text-uppercase small">Data last imported</div>
@@ -58,4 +85,90 @@
     </div>
 
   </div>
+
+  <div class="row g-4">
+
+    <div class="col-12 col-lg-7">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h6 text-uppercase text-muted mb-0">Most recently added</h2>
+            <a href="{% url 'threats:vulnerability_list' %}" class="small">View all &rarr;</a>
+          </div>
+          {% if recent_vulnerabilities %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr class="text-muted small text-uppercase">
+                    <th>CVE ID</th>
+                    <th>Vendor</th>
+                    <th>Severity</th>
+                    <th>Added</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for v in recent_vulnerabilities %}
+                    <tr>
+                      <td>
+                        <a href="{% url 'threats:vulnerability_detail' v.cve_id %}">{{ v.cve_id }}</a>
+                      </td>
+                      <td>{{ v.vendor|default:"—" }}</td>
+                      <td>
+                        {% if v.nvd.severity %}
+                          <span class="badge text-bg-{% if v.nvd.severity == 'CRITICAL' %}danger{% elif v.nvd.severity == 'HIGH' %}warning{% elif v.nvd.severity == 'MEDIUM' %}info{% else %}secondary{% endif %}">
+                            {{ v.nvd.severity }}
+                          </span>
+                        {% else %}
+                          <span class="text-muted small">Not enriched</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-muted small">{{ v.date_added|date:"M j, Y" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No vulnerabilities yet. Run <code>import_cisa</code>.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h6 text-uppercase text-muted mb-0">Top vendors</h2>
+            <a href="{% url 'threats:vulnerability_analytics' %}" class="small">Full analytics &rarr;</a>
+          </div>
+          {% if top_vendors %}
+            <canvas id="dashboardVendorChart" height="220"></canvas>
+          {% else %}
+            <p class="text-muted mb-0">No vendor data yet.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  {{ top_vendors|json_script:"dashboard-vendor-data" }}
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script>
+    const dashboardVendorData = JSON.parse(
+      document.getElementById("dashboard-vendor-data").textContent
+    );
+    if (dashboardVendorData.length) {
+      new Chart(document.getElementById("dashboardVendorChart"), {
+        type: "bar",
+        data: {
+          labels: dashboardVendorData.map(d => d.vendor),
+          datasets: [{ label: "Vulnerabilities", data: dashboardVendorData.map(d => d.count) }],
+        },
+        options: { indexAxis: "y", plugins: { legend: { display: false } } },
+      });
+    }
+  </script>
 {% endblock %}
