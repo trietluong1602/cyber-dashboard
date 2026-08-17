@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from threats.models import Vulnerability
+from threats.models import NvdEnrichment, Vulnerability
 
 
 class ViewTestCase(TestCase):
@@ -141,6 +141,87 @@ class VulnerabilityListTests(ViewTestCase):
                 response = self.client.get(reverse("threats:vulnerability_list"), {"page": value})
                 self.assertEqual(response.status_code, 200)
 
+    # --- NVD-related search behavior ---
+
+    def test_search_matches_nvd_description_for_nvd_only_cve(self):
+        """A CVE known only through NVD has no vendor/product/name to match on."""
+        nvd_only = Vulnerability.objects.create(
+            cve_id="CVE-2026-99999",
+            vendor="",
+            product="",
+            vulnerability_name="",
+            description="",
+        )
+        NvdEnrichment.objects.create(
+            vulnerability=nvd_only,
+            nvd_description="A rare buffer overflow in ExampleWidget.",
+            severity="HIGH",
+        )
+
+        response = self.client.get(
+            reverse("threats:vulnerability_list"), {"q": "ExampleWidget"}
+        )
+
+        self.assertEqual(response.context["total_count"], 1)
+        self.assertContains(response, "CVE-2026-99999")
+
+    def test_search_matches_cwe(self):
+        NvdEnrichment.objects.create(vulnerability=self.recent, cwe_id="CWE-77")
+
+        response = self.client.get(reverse("threats:vulnerability_list"), {"q": "CWE-77"})
+
+        self.assertEqual(response.context["total_count"], 1)
+        self.assertContains(response, "CVE-2026-20349")
+
+    def test_search_does_not_return_duplicate_rows(self):
+        """Matching on multiple Q branches must not duplicate a row in the results."""
+        NvdEnrichment.objects.create(
+            vulnerability=self.recent, cwe_id="CWE-77", nvd_description="Cisco heap issue"
+        )
+
+        response = self.client.get(reverse("threats:vulnerability_list"), {"q": "cisco"})
+
+        self.assertEqual(response.context["total_count"], 1)
+
+    # --- Sorting ---
+
+    def test_default_sort_is_newest_first(self):
+        response = self.client.get(reverse("threats:vulnerability_list"))
+
+        self.assertEqual(response.context["sort"], "-date_added")
+
+    def test_sort_by_vendor(self):
+        response = self.client.get(
+            reverse("threats:vulnerability_list"), {"sort": "vendor"}
+        )
+        rows = list(response.context["page_obj"])
+
+        self.assertEqual(response.context["sort"], "vendor")
+        self.assertEqual(rows[0], self.ransomware)  # "Apache" before "Cisco"
+
+    def test_sort_by_cve_id(self):
+        response = self.client.get(
+            reverse("threats:vulnerability_list"), {"sort": "cve_id"}
+        )
+        rows = list(response.context["page_obj"])
+
+        self.assertEqual(rows[0].cve_id, "CVE-2021-44228")
+
+    def test_invalid_sort_falls_back_to_default(self):
+        """Sort must be a whitelisted value — never a raw pass-through into order_by()."""
+        response = self.client.get(
+            reverse("threats:vulnerability_list"), {"sort": "'; DROP TABLE threats_vulnerability;"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["sort"], "-date_added")
+
+    def test_sort_options_available_in_context(self):
+        response = self.client.get(reverse("threats:vulnerability_list"))
+
+        self.assertIn("-date_added", response.context["sort_options"])
+        self.assertIn("vendor", response.context["sort_options"])
+
 
 class VulnerabilityDetailTests(ViewTestCase):
     def test_loads(self):
@@ -175,3 +256,22 @@ class VulnerabilityDetailTests(ViewTestCase):
         expected = reverse("threats:vulnerability_detail", args=[self.recent.cve_id])
 
         self.assertContains(response, f'href="{expected}"')
+
+    def test_shows_nvd_enrichment_when_present(self):
+        NvdEnrichment.objects.create(
+            vulnerability=self.recent,
+            cvss_score=9.6,
+            severity="CRITICAL",
+            cwe_id="CWE-77",
+        )
+        url = reverse("threats:vulnerability_detail", args=[self.recent.cve_id])
+        response = self.client.get(url)
+
+        self.assertContains(response, "9.6")
+        self.assertContains(response, "CWE-77")
+
+    def test_shows_fallback_when_not_enriched(self):
+        url = reverse("threats:vulnerability_detail", args=[self.recent.cve_id])
+        response = self.client.get(url)
+
+        self.assertContains(response, "has not yet been enriched")
