@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 
 class Vulnerability(models.Model):
@@ -46,3 +47,66 @@ class NvdEnrichment(models.Model):
 
     def __str__(self):
         return f"NVD data for {self.vulnerability.cve_id}"
+
+
+class ETLRun(models.Model):
+    """A record of one run of one ETL job (CISA import or NVD import).
+
+    Kept separate per source rather than one combined "last refresh"
+    timestamp, so a failed NVD run doesn't hide the fact that CISA still
+    refreshed successfully, and so a run history is auditable over time
+    rather than only ever showing the single most recent attempt.
+    """
+
+    SOURCE_CISA = "cisa"
+    SOURCE_NVD = "nvd"
+    SOURCE_CHOICES = [
+        (SOURCE_CISA, "CISA KEV"),
+        (SOURCE_NVD, "NVD Enrichment"),
+    ]
+
+    STATUS_RUNNING = "running"
+    STATUS_SUCCESS = "success"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_RUNNING, "Running"),
+        (STATUS_SUCCESS, "Success"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
+    source = models.CharField(max_length=16, choices=SOURCE_CHOICES)
+    status = models.CharField(
+        max_length=16, choices=STATUS_CHOICES, default=STATUS_RUNNING
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    rows_extracted = models.PositiveIntegerField(default=0)
+    rows_inserted = models.PositiveIntegerField(default=0)
+    rows_updated = models.PositiveIntegerField(default=0)
+    rows_failed = models.PositiveIntegerField(default=0)
+
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"{self.get_source_display()} run at {self.started_at:%Y-%m-%d %H:%M} ({self.status})"
+
+    def mark_success(self, *, rows_extracted=0, rows_inserted=0, rows_updated=0, rows_failed=0):
+        self.status = self.STATUS_SUCCESS
+        self.finished_at = timezone.now()
+        self.rows_extracted = rows_extracted
+        self.rows_inserted = rows_inserted
+        self.rows_updated = rows_updated
+        self.rows_failed = rows_failed
+        self.save()
+
+    def mark_failed(self, error_message, *, rows_extracted=0, rows_failed=0):
+        self.status = self.STATUS_FAILED
+        self.finished_at = timezone.now()
+        self.rows_extracted = rows_extracted
+        self.rows_failed = rows_failed
+        self.error_message = str(error_message)[:5000]
+        self.save()

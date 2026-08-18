@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">ETL Run History</h1>
+    {% if user.is_staff %}
+      <form method="post" action="{% url 'threats:trigger_refresh' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary btn-sm">Refresh data now</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      {% if runs %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr class="text-muted small text-uppercase">
+                <th>Source</th>
+                <th>Status</th>
+                <th>Started</th>
+                <th>Finished</th>
+                <th>Extracted</th>
+                <th>Inserted</th>
+                <th>Updated</th>
+                <th>Failed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for run in runs %}
+                <tr>
+                  <td>{{ run.get_source_display }}</td>
+                  <td>
+                    <span class="badge text-bg-{% if run.status == 'success' %}success{% elif run.status == 'failed' %}danger{% else %}secondary{% endif %}">
+                      {{ run.get_status_display }}
+                    </span>
+                  </td>
+                  <td class="text-muted small">
+                    <time class="js-local-datetime" data-mode="datetime"
+                        datetime="{{ run.started_at|date:'c' }}">{{ run.started_at|date:"M j, Y g:i A" }}</time>
+                  </td>
+                  <td class="text-muted small">
+                    {% if run.finished_at %}
+                      <time class="js-local-datetime" data-mode="datetime"
+                          datetime="{{ run.finished_at|date:'c' }}">{{ run.finished_at|date:"M j, Y g:i A" }}</time>
+                    {% else %}—{% endif %}
+                  </td>
+                  <td>{{ run.rows_extracted }}</td>
+                  <td>{{ run.rows_inserted }}</td>
+                  <td>{{ run.rows_updated }}</td>
+                  <td>{{ run.rows_failed }}</td>
+                </tr>
+                {% if run.status == 'failed' and run.error_message %}
+                  <tr>
+                    <td colspan="8" class="text-danger small">
+                      {{ run.error_message|truncatechars:300 }}
+                    </td>
+                  </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted mb-0">
+          No ETL runs recorded yet. Run <code>python manage.py refresh_all</code>
+          (or <code>import_cisa</code> / <code>import_nvd</code> individually).
+        </p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

@@ -66,20 +66,46 @@
     <div class="col-12 col-sm-6 col-lg-3">
       <div class="card h-100 shadow-sm">
         <div class="card-body">
-          <div class="text-muted text-uppercase small">Data last imported</div>
+          <div class="d-flex justify-content-between align-items-start">
+            <div class="text-muted text-uppercase small">Data last imported</div>
+            <a href="{% url 'threats:etl_status' %}" class="small">History &rarr;</a>
+          </div>
           {% if last_imported %}
             <div class="h4 fw-semibold mb-0 mt-2">
                 <time class="js-local-datetime" data-mode="date"
                     datetime="{{ last_imported|date:'c' }}">{{ last_imported|date:"M j, Y" }}</time>
             </div>
-            <div class="text-muted small">
+            <div class="text-muted small mb-2">
                 <time class="js-local-datetime" data-mode="time"
                     datetime="{{ last_imported|date:'c' }}">{{ last_imported|time:"g:i a T" }}</time>
             </div>
           {% else %}
             <div class="h4 fw-semibold mb-0 mt-2 text-muted">Never</div>
-            <div class="text-muted small">Run <code>import_cisa</code></div>
+            <div class="text-muted small mb-2">Run <code>import_cisa</code></div>
           {% endif %}
+
+          <div class="d-flex gap-3 small">
+            <span>
+              CISA
+              {% if latest_cisa_run %}
+                <span class="badge text-bg-{% if latest_cisa_run.status == 'success' %}success{% elif latest_cisa_run.status == 'failed' %}danger{% else %}secondary{% endif %}">
+                  {{ latest_cisa_run.get_status_display }}
+                </span>
+              {% else %}
+                <span class="badge text-bg-secondary">No runs</span>
+              {% endif %}
+            </span>
+            <span>
+              NVD
+              {% if latest_nvd_run %}
+                <span class="badge text-bg-{% if latest_nvd_run.status == 'success' %}success{% elif latest_nvd_run.status == 'failed' %}danger{% else %}secondary{% endif %}">
+                  {{ latest_nvd_run.get_status_display }}
+                </span>
+              {% else %}
+                <span class="badge text-bg-secondary">No runs</span>
+              {% endif %}
+            </span>
+          </div>
         </div>
       </div>
     </div>

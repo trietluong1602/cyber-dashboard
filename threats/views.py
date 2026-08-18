@@ -1,13 +1,18 @@
+import threading
 from datetime import timedelta
 from statistics import median
 
+from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
+from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db.models import Avg, Count, Max, Q
 from django.db.models.functions import TruncMonth
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import redirect, render, get_object_or_404
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
-from .models import Vulnerability
+from .models import ETLRun, Vulnerability
 
 # NVD's placeholders for "no CWE could be determined" — excluded from the
 # top-weaknesses chart so it reflects real categories, not "unknown".
@@ -28,7 +33,6 @@ SORT_OPTIONS = {
 }
 DEFAULT_SORT = "-date_added"
 
-
 def dashboard(request):
     today = timezone.now().date()
     thirty_days_ago = today - timedelta(days=30)
@@ -38,12 +42,6 @@ def dashboard(request):
         last_imported=Max("source_updated_at"),
     )
 
-    # Split rather than combined: a KEV catalog spans years, so most
-    # federal remediation deadlines have already passed. Lumping "overdue
-    # by 4 years" and "due next Tuesday" into one number under a "due
-    # within 7 days" label is misleading — the two questions ("how big is
-    # the backlog" vs "what's actually urgent right now") deserve separate
-    # answers.
     overdue_count = Vulnerability.objects.filter(
         due_date__isnull=False, due_date__lt=today
     ).count()
@@ -64,6 +62,14 @@ def dashboard(request):
         .order_by("-count")[:8]
     )
 
+    # Most recent run of each source, so a failed NVD run is visible even
+    # if CISA's most recent run succeeded (and vice versa) — ordering by
+    # `-started_at` alone would only show whichever ran last.
+    latest_runs = {
+        run.source: run
+        for run in ETLRun.objects.order_by("source", "-started_at").distinct("source")
+    }
+
     context = {
         "total_count": Vulnerability.objects.count(),
         "ransomware_count": Vulnerability.objects.filter(
@@ -77,8 +83,52 @@ def dashboard(request):
         "last_imported": freshness["last_imported"],
         "recent_vulnerabilities": recent_vulnerabilities,
         "top_vendors": list(top_vendors),
+        "latest_cisa_run": latest_runs.get(ETLRun.SOURCE_CISA),
+        "latest_nvd_run": latest_runs.get(ETLRun.SOURCE_NVD),
     }
     return render(request, "threats/dashboard.html", context)
+
+
+def etl_status(request):
+    """Full ETL run history — the detail behind the dashboard's summary."""
+    runs = ETLRun.objects.all()[:50]
+    return render(request, "threats/etl_status.html", {"runs": runs})
+
+def _run_refresh_in_background():
+    """Runs on a background thread so the triggering request returns
+    immediately instead of blocking on however long the ETL takes.
+
+    Errors are intentionally swallowed here — refresh_all already records
+    a failed ETLRun row per source with the real error message, which is
+    what /etl-status/ shows. There's no request left to report back to by
+    the time this thread finishes, so raising here would only crash a
+    background thread no one is watching.
+    """
+    try:
+        call_command("refresh_all")
+    except Exception:
+        pass
+
+
+@staff_member_required
+@require_POST
+def trigger_refresh(request):
+    """Manually kick off refresh_all from the browser.
+
+    Gated to staff accounts: this is a stand-in for the real Checkpoint 4
+    accounts system, which doesn't exist yet. An unauthenticated
+    "run the ETL now" button on a public site would let anyone trigger
+    outbound API calls on demand, so it's restricted to Django's existing
+    admin auth in the meantime rather than left open.
+    """
+    thread = threading.Thread(target=_run_refresh_in_background, daemon=True)
+    thread.start()
+    messages.success(
+        request,
+        "Refresh started in the background. This page won't update live — "
+        "reload in a minute or two to see the result.",
+    )
+    return redirect("threats:etl_status")
 
 
 def vulnerability_list(request):

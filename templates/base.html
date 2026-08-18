@@ -38,6 +38,14 @@
 </nav>
 
 <main class="app-container py-4">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
     {% block content %}{% endblock %}
 </main>
 
@@ -53,6 +61,8 @@
     if (isNaN(dt)) return;
     const opts = el.dataset.mode === "time"
       ? { hour: "numeric", minute: "2-digit", timeZoneName: "short" }
+      : el.dataset.mode === "datetime"
+      ? { dateStyle: "medium", timeStyle: "short" }
       : { year: "numeric", month: "short", day: "numeric" };
     el.textContent = dt.toLocaleString(undefined, opts);
     el.title = dt.toLocaleString(undefined, { dateStyle: "full", timeStyle: "long" });
